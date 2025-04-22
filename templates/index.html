@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Stats</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Team Stats</h1>
+        <div id="teams" class="team-list"></div>
+        <div id="average-stats" class="stats mt-4"></div>
+        <div id="matches" class="matches mt-4"></div>
+        <div id="match-details" class="stats mt-4"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            fetch('/teams')
+                .then(response => response.json())
+                .then(data => {
+                    const teamsDiv = document.getElementById('teams');
+                    data.forEach(team => {
+                        const teamDiv = document.createElement('div');
+                        teamDiv.className = 'team btn btn-primary btn-block';
+                        teamDiv.textContent = team.team_name;
+                        teamDiv.onclick = () => loadTeamStats(team.team_id, team.team_name);
+                        teamsDiv.appendChild(teamDiv);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching teams:', error);
+                });
+        });
+
+        function loadTeamStats(teamId, teamName) {
+            fetch(`/team/${teamId}/stats`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const averageStatsDiv = document.getElementById('average-stats');
+                    const matchesDiv = document.getElementById('matches');
+                    const matchDetailsDiv = document.getElementById('match-details');
+
+                    averageStatsDiv.innerHTML = `
+                        <h2>Average Stats for ${teamName}</h2>
+                        ${generateCollapsibleTabs(data.average_stats, 'average')}
+                    `;
+
+                    matchesDiv.innerHTML = `<h2>Matches</h2>`;
+                    matchDetailsDiv.innerHTML = '';
+
+                    data.individual_stats.key_stats.forEach((match, index) => {
+                        matchesDiv.innerHTML += `
+                            <div class="match btn btn-secondary btn-block" onclick="showMatchDetails(${teamId}, ${match.match_id}, '${match.match_name}', '${match.date}', '${match.result}')">
+                                <h3>${match.match_name}</h3>
+                                <p>Date: ${match.date}</p>
+                                <p>Result: ${match.result}</p>
+                            </div>
+                        `;
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching team stats:', error);
+                });
+        }
+
+        function showMatchDetails(teamId, matchId, matchName, matchDate, matchResult) {
+            fetch(`/team/${teamId}/match/${matchId}/stats`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const matchDetailsDiv = document.getElementById('match-details');
+                    matchDetailsDiv.innerHTML = `
+                        <h2>${matchName}</h2>
+                        <p>Date: ${matchDate}</p>
+                        <p>Result: ${matchResult}</p>
+                        ${generateCollapsibleTabs(data, 'match')}
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error fetching match stats:', error);
+                });
+        }
+
+        function generateCollapsibleTabs(stats, parentId) {
+            let html = '';
+            for (const [category, values] of Object.entries(stats)) {
+                const categoryId = `${parentId}-${category.replace(/\s+/g, '-').toLowerCase()}`;
+                html += `
+                    <div class="card">
+                        <div class="card-header" id="heading-${categoryId}">
+                            <h5 class="mb-0">
+                                <button class="btn btn-link" data-toggle="collapse" data-target="#collapse-${categoryId}" aria-expanded="true" aria-controls="collapse-${categoryId}">
+                                    ${category.replace(/_/g, ' ').toUpperCase()}
+                                </button>
+                            </h5>
+                        </div>
+                        <div id="collapse-${categoryId}" class="collapse" aria-labelledby="heading-${categoryId}" data-parent="#${parentId}-stats">
+                            <div class="card-body">
+                                ${generateStatsTable(values)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            return html;
+        }
+
+        function generateStatsTable(stats) {
+            let html = '<table class="table table-striped">';
+            for (const [key, value] of Object.entries(stats)) {
+                html += '<tr><th>' + key.replace(/_/g, ' ').toUpperCase() + '</th><td>' + (typeof value === 'number' ? value.toFixed(2) : value) + '</td></tr>';
+            }
+            html += '</table>';
+            return html;
+        }
+    </script>
+</body>
+</html>
